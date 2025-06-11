@@ -32,6 +32,7 @@
 
         .bill-input {
             margin-bottom: 30px;
+            text-align: center;
         }
 
         .bill-input label {
@@ -124,6 +125,12 @@
             color: #667eea;
         }
 
+        .no-tip {
+            background: #f8f9fa;
+            border-color: #e9ecef;
+            color: #6c757d;
+        }
+
         .custom-tip:hover, .no-tip:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
@@ -210,10 +217,6 @@
             transform: scale(0.98);
         }
 
-        .apple-pay-button.supported {
-            background: linear-gradient(135deg, #000 0%, #333 100%);
-        }
-
         .venmo-button {
             background: #3D95CE;
             color: white;
@@ -239,7 +242,7 @@
         }
 
         .payment-method-text {
-            font-size: 12px;
+            font-size: 10px;
             color: #888;
             margin-top: 10px;
             text-align: center;
@@ -300,7 +303,7 @@
 <body>
     <div class="calculator-container">
         <div class="bill-input">
-            <label for="billAmount">Bill Amount</label>
+            <label for="billAmount">Add a Tip</label>
             <input type="number" id="billAmount" placeholder="$0.00" step="0.01" min="0">
         </div>
 
@@ -337,12 +340,12 @@
             <div class="tip-breakdown" id="tipBreakdown">Tip: $0.00</div>
             <div class="payment-buttons">
                 <button class="apple-pay-button" id="applePayButton" style="display: none;">
-                    <span>🍎</span> Pay with Apple Pay
+                     Pay
                 </button>
                 <button class="venmo-button" id="venmoButton">
-                    Pay with Venmo
+                    Venmo
                 </button>
-                <div class="payment-method-text" id="paymentMethodText"></div>
+                <div class="payment-method-text" id="paymentMethodText">NONREFUNDABLE</div>
             </div>
         </div>
     </div>
@@ -371,64 +374,26 @@
         const VENMO_USERNAME = 'LanaDelRey'; // Update this with your actual Venmo username
 
         function checkApplePaySupport() {
-            // Add debug info to the page itself so you can see it
-            const debugInfo = document.createElement('div');
-            debugInfo.style.cssText = 'position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px; z-index: 9999; max-width: 300px;';
-            
-            let debugText = '';
-            debugText += `iOS: ${/iPad|iPhone|iPod/.test(navigator.userAgent)}\n`;
-            debugText += `Safari: ${/Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)}\n`;
-            debugText += `ApplePaySession exists: ${!!window.ApplePaySession}\n`;
-            
-            if (window.ApplePaySession) {
-                debugText += `canMakePayments exists: ${!!ApplePaySession.canMakePayments}\n`;
-                if (ApplePaySession.canMakePayments) {
-                    try {
-                        const canPay = ApplePaySession.canMakePayments();
-                        debugText += `canMakePayments(): ${canPay}\n`;
-                        isApplePaySupported = canPay;
-                    } catch (error) {
-                        debugText += `canMakePayments() error: ${error.message}\n`;
-                        isApplePaySupported = false;
-                    }
-                } else {
-                    debugText += `canMakePayments method not available\n`;
+            if (window.ApplePaySession && ApplePaySession.canMakePayments) {
+                try {
+                    isApplePaySupported = ApplePaySession.canMakePayments();
+                } catch (error) {
                     isApplePaySupported = false;
                 }
             } else {
-                debugText += `ApplePaySession not available\n`;
                 isApplePaySupported = false;
             }
-            
-            debugText += `Final result: ${isApplePaySupported}`;
-            debugInfo.textContent = debugText;
-            document.body.appendChild(debugInfo);
-            
-            // Remove debug info after 10 seconds
-            setTimeout(() => {
-                if (debugInfo.parentNode) {
-                    debugInfo.parentNode.removeChild(debugInfo);
-                }
-            }, 10000);
             
             updatePaymentInterface();
         }
 
         function updatePaymentInterface() {
-            console.log('Updating payment interface. Apple Pay supported:', isApplePaySupported);
-            console.log('User agent:', navigator.userAgent);
-            console.log('ApplePaySession available:', !!window.ApplePaySession);
-            
             if (isApplePaySupported) {
                 applePayButton.style.display = 'flex';
                 venmoButton.style.display = 'flex';
-                paymentMethodText.textContent = 'Apple Pay or Venmo accepted';
-                console.log('Showing Apple Pay button');
             } else {
                 applePayButton.style.display = 'none';
                 venmoButton.style.display = 'flex';
-                paymentMethodText.textContent = 'Pay with Venmo';
-                console.log('Hiding Apple Pay button');
             }
         }
 

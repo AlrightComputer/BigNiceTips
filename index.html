@@ -15,10 +15,8 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
+            /* Changed: Remove flex centering and use fixed positioning */
         }
 
         .calculator-container {
@@ -28,6 +26,13 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             max-width: 400px;
             width: 100%;
+            /* Changed: Anchor to center-top of viewport */
+            position: fixed;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
         }
 
         .bill-input {
@@ -298,9 +303,30 @@
         .total-section.pay-now .pay-now-text {
             display: block;
         }
+
+        /* Success message styling */
+        .success-message {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #4CAF50;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+
+
     </style>
 </head>
 <body>
+    <div class="success-message" id="successMessage">Payment Successful! ✓</div>
+    
     <div class="calculator-container">
         <div class="bill-input">
             <label for="billAmount">Add a Tip</label>
@@ -339,9 +365,6 @@
             <div class="pay-now-text">Pay Now</div>
             <div class="tip-breakdown" id="tipBreakdown">Tip: $0.00</div>
             <div class="payment-buttons">
-                <button class="apple-pay-button" id="applePayButton" style="display: none;">
-                     Pay
-                </button>
                 <button class="venmo-button" id="venmoButton">
                     Venmo
                 </button>
@@ -355,7 +378,9 @@
         let selectedTip = 0;
         let customTipValue = 0;
         let hasTipSelection = false;
-        let isApplePaySupported = false;
+
+        // Change this to your actual Venmo username for payments
+        const VENMO_USERNAME = 'soncalo';
 
         const billInput = document.getElementById('billAmount');
         const tipButtons = document.querySelectorAll('.tip-button');
@@ -366,29 +391,31 @@
         const totalAmountDisplay = document.getElementById('totalAmount');
         const tipBreakdownDisplay = document.getElementById('tipBreakdown');
         const totalSection = document.getElementById('totalSection');
-        const applePayButton = document.getElementById('applePayButton');
         const venmoButton = document.getElementById('venmoButton');
         const paymentMethodText = document.getElementById('paymentMethodText');
-
-        // Updated Venmo username
-        const VENMO_USERNAME = 'soncalo';
+        const successMessage = document.getElementById('successMessage');
 
         function formatCurrency(input) {
             let value = input.value.replace(/[^\d.]/g, '');
             
             if (value === '') {
-                input.value = '$0.00';
                 return 0;
             }
 
             const numericValue = parseFloat(value);
             if (isNaN(numericValue)) {
-                input.value = '$0.00';
                 return 0;
             }
 
-            input.value = '$' + numericValue.toFixed(2);
             return numericValue;
+        }
+
+        function formatCurrencyDisplay(input, value) {
+            if (value === 0 && input !== document.activeElement) {
+                input.value = '$0.00';
+            } else if (input !== document.activeElement) {
+                input.value = '$' + value.toFixed(2);
+            }
         }
 
         function checkApplePaySupport() {
@@ -416,72 +443,163 @@
         }
 
         function processApplePay() {
-            if (!window.ApplePaySession) {
+            if (!window.ApplePaySession || !ApplePaySession.canMakePayments()) {
                 alert('Apple Pay is not supported on this device/browser');
                 return;
             }
 
-            const total = billAmount + (selectedTip > 0 ? (billAmount * selectedTip / 100) : customTipValue);
+            const tipAmount = selectedTip > 0 ? (billAmount * selectedTip / 100) : customTipValue;
+            const total = billAmount + tipAmount;
             
+            // Real Apple Pay configuration
             const request = {
                 countryCode: 'US',
                 currencyCode: 'USD',
                 supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
                 merchantCapabilities: ['supports3DS'],
                 total: {
-                    label: 'Tip Calculator Payment',
-                    amount: total.toFixed(2)
+                    label: 'Tip Payment',
+                    amount: total.toFixed(2),
+                    type: 'final'
+                },
+                lineItems: [
+                    {
+                        label: 'Base Amount',
+                        amount: billAmount.toFixed(2)
+                    },
+                    {
+                        label: selectedTip > 0 ? `Tip (${selectedTip}%)` : 'Tip',
+                        amount: tipAmount.toFixed(2)
+                    }
+                ]
+            };
+
+            const session = new ApplePaySession(10, request);
+            showLoadingState('Apple Pay');
+
+            session.onvalidatemerchant = async (event) => {
+                try {
+                    // In production, you'd send this to your server for merchant validation
+                    // For classroom demo, we'll simulate the validation
+                    console.log('Apple Pay: Merchant validation requested');
+                    console.log('Validation URL:', event.validationURL);
+                    
+                    // Simulate server response - in real implementation, 
+                    // your server would handle this with your Apple Pay certificate
+                    setTimeout(() => {
+                        try {
+                            // This would be the actual merchant session from your server
+                            const merchantSession = {
+                                epochTimestamp: Date.now(),
+                                expiresAt: Date.now() + 300000,
+                                merchantSessionIdentifier: 'demo_session_' + Date.now(),
+                                nonce: 'demo_nonce_' + Math.random().toString(36),
+                                merchantIdentifier: 'merchant.com.yourcompany.tipcalculator',
+                                domainName: window.location.hostname,
+                                displayName: 'Tip Calculator Demo',
+                                signature: 'demo_signature'
+                            };
+                            
+                            session.completeMerchantValidation(merchantSession);
+                        } catch (error) {
+                            console.error('Merchant validation failed:', error);
+                            session.abort();
+                            resetButtons();
+                            alert('Apple Pay setup error. Please try Venmo instead.');
+                        }
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('Merchant validation error:', error);
+                    session.abort();
+                    resetButtons();
                 }
             };
 
-            const session = new ApplePaySession(3, request);
-
-            session.onvalidatemerchant = (event) => {
-                console.log('Apple Pay merchant validation required');
-                setTimeout(() => {
-                    try {
-                        session.completeMerchantValidation({});
-                    } catch (e) {
-                        session.abort();
-                        processVenmoPayment();
-                    }
-                }, 1000);
-            };
-
-            session.onpaymentauthorized = (event) => {
-                console.log('Apple Pay authorized:', event.payment);
+            session.onpaymentauthorized = async (event) => {
+                console.log('Apple Pay: Payment authorized');
+                console.log('Payment data:', event.payment);
                 
-                setTimeout(() => {
-                    session.completePayment(ApplePaySession.STATUS_SUCCESS);
-                    showPaymentSuccess('Apple Pay');
-                }, 1500);
+                try {
+                    // Here you would send the payment token to your payment processor
+                    // (Stripe, Square, etc.) to actually charge the card
+                    
+                    const paymentData = {
+                        paymentToken: event.payment.token,
+                        billingContact: event.payment.billingContact,
+                        shippingContact: event.payment.shippingContact,
+                        amount: total.toFixed(2),
+                        currency: 'USD',
+                        description: `Tip payment - ${billAmount.toFixed(2)} + ${tipAmount.toFixed(2)} tip`
+                    };
+                    
+                    // Simulate payment processing
+                    console.log('Processing payment:', paymentData);
+                    
+                    // In production, you'd make an API call to your server:
+                    /*
+                    const response = await fetch('/process-apple-pay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(paymentData)
+                    });
+                    
+                    const result = await response.json();
+                    */
+                    
+                    // Simulate successful payment processing
+                    setTimeout(() => {
+                        session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                        showPaymentSuccess('Apple Pay');
+                        resetCalculator();
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('Payment processing error:', error);
+                    session.completePayment(ApplePaySession.STATUS_FAILURE);
+                    resetButtons();
+                    alert('Payment failed. Please try again.');
+                }
             };
 
             session.oncancel = () => {
-                console.log('Apple Pay cancelled');
+                console.log('Apple Pay: User cancelled');
+                resetButtons();
             };
 
             try {
                 session.begin();
-            } catch (e) {
-                console.log('Apple Pay session failed to start, falling back to Venmo');
-                processVenmoPayment();
+            } catch (error) {
+                console.error('Apple Pay session failed to start:', error);
+                resetButtons();
+                alert('Apple Pay unavailable. Please try Venmo instead.');
             }
         }
 
         function processVenmoPayment() {
             const tipAmount = selectedTip > 0 ? (billAmount * selectedTip / 100) : customTipValue;
             const total = billAmount + tipAmount;
-            const tipDisplay = selectedTip > 0 ? `${selectedTip}% tip` : `$${customTipValue.toFixed(2)} tip`;
-            const note = `Tip Calculator Payment - $${billAmount.toFixed(2)} + ${tipDisplay}`;
+            const tipDisplay = selectedTip > 0 ? selectedTip + '% tip' : '$' + customTipValue.toFixed(2) + ' tip';
+            const note = 'Tip Calculator Payment - $' + billAmount.toFixed(2) + ' + ' + tipDisplay;
             
-            const venmoUrl = `venmo://paycharge?txn=pay&recipients=${VENMO_USERNAME}&amount=${total.toFixed(2)}&note=${encodeURIComponent(note)}`;
-            const venmoWebUrl = `https://venmo.com/code?user_id=${VENMO_USERNAME}&amount=${total.toFixed(2)}&note=${encodeURIComponent(note)}`;
+            // For demo - show the Venmo URL that would be used
+            console.log('Demo: Would redirect to Venmo with:');
+            console.log('Username:', VENMO_USERNAME);
+            console.log('Amount:', total.toFixed(2));
+            console.log('Note:', note);
             
+            // Construct actual Venmo URLs
+            const venmoUrl = 'venmo://paycharge?txn=pay&recipients=' + VENMO_USERNAME + '&amount=' + total.toFixed(2) + '&note=' + encodeURIComponent(note);
+            const venmoWebUrl = 'https://venmo.com/code?user_id=' + VENMO_USERNAME + '&amount=' + total.toFixed(2) + '&note=' + encodeURIComponent(note);
+            
+            // For classroom demo - actually try to open Venmo
             const userAgent = navigator.userAgent.toLowerCase();
             const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
             
+            showLoadingState('Venmo');
+            
             if (isMobile) {
+                // Try app first, then web fallback
                 window.location.href = venmoUrl;
                 
                 setTimeout(() => {
@@ -490,22 +608,56 @@
                     }
                 }, 2000);
             } else {
+                // Desktop - open web version
                 window.open(venmoWebUrl, '_blank');
             }
             
-            showPaymentInitiated('Venmo');
+            // Simulate success after delay for demo
+            setTimeout(() => {
+                showPaymentSuccess('Venmo');
+                resetCalculator();
+            }, 3000);
+        }
+
+        function showLoadingState(method) {
+            const buttons = document.querySelectorAll('.apple-pay-button, .venmo-button');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                btn.style.opacity = '0.6';
+                if (btn.classList.contains('venmo-button') && method === 'Venmo') {
+                    btn.textContent = 'Processing...';
+                } else if (btn.classList.contains('apple-pay-button') && method === 'Apple Pay') {
+                    btn.textContent = 'Processing...';
+                }
+            });
+        }
+
+        function resetButtons() {
+            const buttons = document.querySelectorAll('.apple-pay-button, .venmo-button');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            });
+            applePayButton.textContent = ' Pay';
+            venmoButton.textContent = 'Venmo';
         }
 
         function showPaymentSuccess(method) {
-            alert(`Payment successful via ${method}! Thank you for your payment.`);
+            successMessage.textContent = `Payment successful via ${method}! ✓`;
+            successMessage.style.display = 'block';
+            
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 3000);
+        }
+
+        function resetCalculator() {
+            billAmount = 0;
             billInput.value = '$0.00';
             customAmountInput.value = '$0.00';
             clearSelections();
             updateTipAmounts();
-        }
-
-        function showPaymentInitiated(method) {
-            alert(`Payment initiated via ${method}. Please complete the payment in the ${method} app/website.`);
+            resetButtons();
         }
 
         function updatePayNowState() {
@@ -531,7 +683,7 @@
             tipButtons.forEach(button => {
                 const tipPercent = parseInt(button.dataset.tip);
                 const tipAmount = (billAmount * tipPercent) / 100;
-                button.querySelector('.tip-amount').textContent = `$${tipAmount.toFixed(2)}`;
+                button.querySelector('.tip-amount').textContent = '$' + tipAmount.toFixed(2);
             });
             
             calculateTotal();
@@ -544,16 +696,16 @@
 
             if (selectedTip > 0) {
                 tipAmount = (billAmount * selectedTip) / 100;
-                tipDisplay = `Tip (${selectedTip}%): $${tipAmount.toFixed(2)}`;
+                tipDisplay = 'Tip (' + selectedTip + '%): $' + tipAmount.toFixed(2);
             } else if (customTipValue > 0) {
                 tipAmount = customTipValue;
-                tipDisplay = `Tip: $${tipAmount.toFixed(2)}`;
+                tipDisplay = 'Tip: $' + tipAmount.toFixed(2);
             } else {
                 tipDisplay = 'Tip: $0.00';
             }
 
             const total = billAmount + tipAmount;
-            totalAmountDisplay.textContent = `$${total.toFixed(2)}`;
+            totalAmountDisplay.textContent = '$' + total.toFixed(2);
             tipBreakdownDisplay.textContent = tipDisplay;
         }
 
@@ -568,21 +720,23 @@
             updatePayNowState();
         }
 
+        // Event listeners
         billInput.addEventListener('input', () => {
             billAmount = formatCurrency(billInput);
             updateTipAmounts();
         });
 
         billInput.addEventListener('focus', () => {
-            if (billInput.value === '$0.00') {
-                billInput.value = '$';
+            if (billInput.value === '$0.00' || billInput.value === '$0') {
+                billInput.value = '';
             }
         });
 
         billInput.addEventListener('blur', () => {
+            formatCurrencyDisplay(billInput, billAmount);
             if (billInput.value === '$' || billInput.value === '') {
-                billInput.value = '$0.00';
                 billAmount = 0;
+                billInput.value = '$0.00';
                 updateTipAmounts();
             }
         });
@@ -594,15 +748,16 @@
         });
 
         customAmountInput.addEventListener('focus', () => {
-            if (customAmountInput.value === '$0.00') {
-                customAmountInput.value = '$';
+            if (customAmountInput.value === '$0.00' || customAmountInput.value === '$0') {
+                customAmountInput.value = '';
             }
         });
 
         customAmountInput.addEventListener('blur', () => {
+            formatCurrencyDisplay(customAmountInput, customTipValue);
             if (customAmountInput.value === '$' || customAmountInput.value === '') {
-                customAmountInput.value = '$0.00';
                 customTipValue = 0;
+                customAmountInput.value = '$0.00';
                 calculateTotal();
                 updatePayNowState();
             }
@@ -635,12 +790,10 @@
             updatePayNowState();
         });
 
-        checkApplePaySupport();
-
-        applePayButton.addEventListener('click', processApplePay);
+        // Payment button event listener
         venmoButton.addEventListener('click', processVenmoPayment);
 
-        // Initialize with proper formatting
+        // Initialize
         billInput.value = '$0.00';
         customAmountInput.value = '$0.00';
         updateTipAmounts();

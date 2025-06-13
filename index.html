@@ -321,23 +321,10 @@
             z-index: 1000;
         }
 
-        /* Demo mode indicator */
-        .demo-indicator {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: #ff9800;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: 600;
-            z-index: 1000;
-        }
+
     </style>
 </head>
 <body>
-    <div class="demo-indicator">DEMO MODE</div>
     <div class="success-message" id="successMessage">Payment Successful! ✓</div>
     
     <div class="calculator-container">
@@ -378,9 +365,6 @@
             <div class="pay-now-text">Pay Now</div>
             <div class="tip-breakdown" id="tipBreakdown">Tip: $0.00</div>
             <div class="payment-buttons">
-                <button class="apple-pay-button" id="applePayButton" style="display: none;">
-                     Pay
-                </button>
                 <button class="venmo-button" id="venmoButton">
                     Venmo
                 </button>
@@ -394,10 +378,9 @@
         let selectedTip = 0;
         let customTipValue = 0;
         let hasTipSelection = false;
-        let isApplePaySupported = false;
 
-        // Demo mode - change this to your actual Venmo username
-        const VENMO_USERNAME = 'soncalo'; // Change this to your username for demo
+        // Change this to your actual Venmo username for payments
+        const VENMO_USERNAME = 'soncalo';
 
         const billInput = document.getElementById('billAmount');
         const tipButtons = document.querySelectorAll('.tip-button');
@@ -408,7 +391,6 @@
         const totalAmountDisplay = document.getElementById('totalAmount');
         const tipBreakdownDisplay = document.getElementById('tipBreakdown');
         const totalSection = document.getElementById('totalSection');
-        const applePayButton = document.getElementById('applePayButton');
         const venmoButton = document.getElementById('venmoButton');
         const paymentMethodText = document.getElementById('paymentMethodText');
         const successMessage = document.getElementById('successMessage');
@@ -808,12 +790,10 @@
             updatePayNowState();
         });
 
-        // Payment button event listeners
-        applePayButton.addEventListener('click', processApplePay);
+        // Payment button event listener
         venmoButton.addEventListener('click', processVenmoPayment);
 
         // Initialize
-        checkApplePaySupport();
         billInput.value = '$0.00';
         customAmountInput.value = '$0.00';
         updateTipAmounts();
